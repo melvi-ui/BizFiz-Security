@@ -2,92 +2,97 @@ from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
-from kivy.uix.scrollview import ScrollView
-from kivy.clock import Clock
-from kivy.graphics import Color, Line
+from kivy.uix.progressbar import ProgressBar
+from kivy.uix.screenmanager import ScreenManager, Screen, FadeTransition
 from kivy.animation import Animation
-import os
+from kivy.clock import Clock
+from kivy.utils import get_color_from_hex
+
+class Dashboard(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Main Theme: Dark Navy (McAfee/Kaspersky mix)
+        root = BoxLayout(orientation='horizontal')
+        
+        # 1. SIDEBAR (Bitdefender/Panda style)
+        sidebar = BoxLayout(orientation='vertical', size_hint_x=0.18, spacing=15, padding=10)
+        sidebar.add_widget(Button(text="🛡️", size_hint_y=None, height='60dp', background_color=(0.1, 0.1, 0.2, 1)))
+        sidebar.add_widget(Button(text="🔒", size_hint_y=None, height='60dp', background_color=(0.1, 0.1, 0.2, 1), on_press=self.go_premium))
+        sidebar.add_widget(Button(text="🚀", size_hint_y=None, height='60dp', background_color=(0.1, 0.1, 0.2, 1)))
+        root.add_widget(sidebar)
+
+        # 2. MAIN CONTENT
+        main_content = BoxLayout(orientation='vertical', padding=30, spacing=20)
+        
+        # Glowing Status (Norton style)
+        self.status_label = Label(text="SYSTEM AT RISK", font_size='28sp', bold=True, color=get_color_from_hex("#00CCFF"))
+        main_content.add_widget(self.status_label)
+
+        # Futuristic Progress Bar
+        self.progress = ProgressBar(max=100, value=0, size_hint_y=None, height='20dp')
+        main_content.add_widget(self.progress)
+
+        # One-Tap Scan Button (Avast style)
+        self.scan_btn = Button(
+            text="START DEEP SCAN", size_hint=(0.8, 0.2),
+            pos_hint={'center_x': 0.5}, background_color=get_color_from_hex("#0055FF"),
+            font_size='22sp', bold=True
+        )
+        self.scan_btn.bind(on_press=self.initiate_deep_scan)
+        main_content.add_widget(self.scan_btn)
+
+        # Optimization Cards (Avira/TotalAV style)
+        cards = BoxLayout(orientation='horizontal', size_hint_y=0.25, spacing=15)
+        cards.add_widget(Button(text="CLEAN JUNK", background_color=(0.2, 0.2, 0.2, 1)))
+        cards.add_widget(Button(text="BOOST RAM", background_color=(0.2, 0.2, 0.2, 1)))
+        main_content.add_widget(cards)
+
+        root.add_widget(main_content)
+        self.add_widget(root)
+
+    def initiate_deep_scan(self, instance):
+        self.scan_btn.disabled = True
+        self.status_label.text = "DEEP SCAN IN PROGRESS..."
+        self.status_label.color = get_color_from_hex("#FFCC00") # Alert Yellow
+        
+        # Animate the progress bar
+        anim = Animation(value=100, duration=5, t='in_out_quad')
+        anim.bind(on_complete=self.scan_finished)
+        anim.start(self.progress)
+
+    def scan_finished(self, *args):
+        self.status_label.text = "SYSTEM SECURED"
+        self.status_label.color = get_color_from_hex("#00FF66") # Success Green
+        self.scan_btn.text = "SCAN AGAIN"
+        self.scan_btn.disabled = False
+
+    def go_premium(self, instance):
+        self.manager.current = 'premium'
+
+class PremiumScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        layout = BoxLayout(orientation='vertical', padding=40, spacing=20)
+        layout.add_widget(Label(text="BIZFIX PREMIUM", font_size='34sp', bold=True, color=(1, 0.8, 0, 1)))
+        layout.add_widget(Label(text="Unlock All Systems:\n• Deep AI Threat Hunting\n• Anti-Phishing (MRA/MCB)\n• Identity Guard Mauritius", halign='center'))
+        
+        buy_btn = Button(text="UNLOCK ALL - Rs 499 / Year", size_hint_y=0.2, background_color=(0, 0.8, 0, 1))
+        layout.add_widget(buy_btn)
+        
+        back_btn = Button(text="Back to Dashboard", size_hint_y=0.1, background_color=(0.3, 0.3, 0.3, 1))
+        back_btn.bind(on_press=self.go_back)
+        layout.add_widget(back_btn)
+        self.add_widget(layout)
+
+    def go_back(self, instance):
+        self.manager.current = 'dashboard'
 
 class BizFixSecurity(App):
     def build(self):
-        self.title = "BIZFIX-SECURITY: NEON"
-        
-        # Dark Background Layout
-        self.layout = BoxLayout(orientation='vertical', padding=30, spacing=20)
-        
-        # Futuristic Header
-        self.header = Label(
-            text="[ BIZFIX // SECURITY ]", 
-            font_size='32sp', 
-            color=(0, 0.8, 1, 1), # Neon Blue
-            bold=True
-        )
-        self.layout.add_widget(self.header)
-
-        # Status with a pulsing effect
-        self.status = Label(text="SYSTEM: STANDBY", color=(0.5, 0.5, 0.5, 1))
-        self.layout.add_widget(self.status)
-        
-        # Futuristic Scan Button
-        self.scan_btn = Button(
-            text="INITIALIZE SCAN",
-            size_hint_y=None, height='80dp',
-            background_color=(0, 0.4, 0.6, 1),
-            color=(1, 1, 1, 1),
-            background_normal='' # Removes the default grey look
-        )
-        self.scan_btn.bind(on_press=self.start_scan_animation)
-        self.layout.add_widget(self.scan_btn)
-
-        # Results Console
-        self.scroll = ScrollView()
-        self.console = Label(
-            text="> Waiting for user input...", 
-            size_hint_y=None, 
-            halign='left', 
-            color=(0, 1, 0.3, 1), # Matrix Green
-            font_name='Roboto' # Or a monospaced font if available
-        )
-        self.console.bind(texture_size=self.console.setter('size'))
-        self.scroll.add_widget(self.console)
-        self.layout.add_widget(self.scroll)
-        
-        return self.layout
-
-    def start_scan_animation(self, instance):
-        self.console.text = "> Booting scan engine...\n> Accessing local storage..."
-        self.status.text = "SCANNING..."
-        self.status.color = (1, 0.8, 0, 1) # Alert Yellow
-        
-        # Animate the header to pulse
-        anim = Animation(color=(1, 1, 1, 1), duration=0.5) + Animation(color=(0, 0.8, 1, 1), duration=0.5)
-        anim.repeat = True
-        anim.start(self.header)
-        
-        # Schedule the actual scan logic after 2 seconds to simulate "thinking"
-        Clock.schedule_once(self.run_actual_scan, 2)
-
-    def run_actual_scan(self, dt):
-        path = "/sdcard/Download" if os.path.exists("/sdcard/Download") else "."
-        found_issues = []
-        
-        # Logic to simulate "deep" scanning
-        for root, _, files in os.walk(path):
-            for file in files:
-                self.console.text += f"\n> Checking: {file[:20]}..."
-                if file.endswith(('.apk', '.exe', '.sh')):
-                    found_issues.append(file)
-
-        Animation.stop_all(self.header) # Stop the pulse
-        
-        if not found_issues:
-            self.status.text = "SYSTEM: CLEAN"
-            self.status.color = (0, 1, 0, 1) # Safe Green
-            self.console.text += "\n\n> SCAN COMPLETE: 0 THREATS DETECTED."
-        else:
-            self.status.text = "SYSTEM: COMPROMISED"
-            self.status.color = (1, 0, 0, 1) # Danger Red
-            self.console.text += f"\n\n> WARNING: {len(found_issues)} SUSPICIOUS FILES FOUND."
+        sm = ScreenManager(transition=FadeTransition())
+        sm.add_widget(Dashboard(name='dashboard'))
+        sm.add_widget(PremiumScreen(name='premium'))
+        return sm
 
 if __name__ == "__main__":
     BizFixSecurity().run()
